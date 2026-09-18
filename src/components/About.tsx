@@ -107,8 +107,8 @@ export const About: React.FC = () => {
                 {/* Micro Badge */}
                 <div className="absolute bottom-4 left-4 right-4 p-3 rounded-xl glass-nav border border-white/20 flex items-center justify-between text-xs">
                   <div>
-                    <div className="text-[10px] text-[#d8ac6a] uppercase font-semibold">Spesialisasi</div>
-                    <div className="font-bold text-white">Business Intelligence & AI</div>
+                    <div className="text-[10px] text-[#d8ac6a] uppercase font-semibold">Studi & Spesialisasi</div>
+                    <div className="font-bold text-white">S1 Sistem Informasi · Telkom University</div>
                   </div>
                   <div className="w-7 h-7 rounded-full bg-[#ff5fac]/20 text-[#ff5fac] flex items-center justify-center text-xs">
                     <Sparkles className="w-3.5 h-3.5" />
@@ -132,30 +132,38 @@ export const About: React.FC = () => {
               <div className="space-y-2 pt-2 pb-4 text-xs sm:text-sm text-gray-300">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#ff5fac] shrink-0" />
-                  <span>Sertifikasi Profesional Google dalam Business Intelligence & AI</span>
+                  <span>S1 Sistem Informasi (Bachelor of Information Systems) di Telkom University</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#d8ac6a] shrink-0" />
-                  <span>Terampil dalam Manajemen Pemangku Kepentingan (Stakeholder Management)</span>
+                  <span>Sertifikasi Profesional Google dalam Business Intelligence & AI</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#ff8ec4] shrink-0" />
+                  <span>Terampil dalam Manajemen Pemangku Kepentingan (Stakeholder Management)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#d8ac6a] shrink-0" />
                   <span>Pengalaman memandu acara & public speaker di tingkat regional</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-6 border-t border-white/10 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 border-t border-white/10 text-xs">
                 <div>
                   <span className="text-gray-400 block mb-1">Domisili</span>
                   <span className="font-semibold text-white">{profile.location}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block mb-1">Pendidikan Terakhir</span>
-                  <span className="font-semibold text-white">SMAN 14 Jakarta</span>
+                  <span className="text-gray-400 block mb-1">Perguruan Tinggi</span>
+                  <span className="font-semibold text-white">Telkom University</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block mb-1">Program Studi</span>
+                  <span className="font-semibold text-[#ff5fac]">S1 Sistem Informasi</span>
                 </div>
                 <div>
                   <span className="text-gray-400 block mb-1">Instagram</span>
-                  <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#ff5fac] hover:underline">
+                  <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#d8ac6a] hover:underline">
                     {profile.instagram}
                   </a>
                 </div>

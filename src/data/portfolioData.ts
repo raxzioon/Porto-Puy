@@ -38,16 +38,18 @@ export interface ExperienceItem {
 export const personalData = {
   name: "Puteri Najma Azzahra",
   shortName: "Puteri",
-  title: "Business Enthusiast & Data Analyst",
+  title: "Bachelor of Information Systems Student | Business Enthusiast & Data Analyst",
   phone: "0812-9765-8009",
   email: "puterinajma41@gmail.com",
   instagram: "@puteryna_",
   instagramUrl: "https://instagram.com/puteryna_",
   whatsappUrl: "https://wa.me/6281297658009",
   location: "Jakarta, Indonesia",
-  bio: "Lulusan SMAN 14 Jakarta dengan minat kuat di bidang pengembangan bisnis, analisis data, dan teknologi kecerdasan buatan (AI). Memiliki sertifikasi profesional Google dalam Business Intelligence, AI, dan Stakeholder Management. Terampil dalam kepemimpinan tim, manajemen pemangku kepentingan, serta mampu mengolah data menjadi wawasan bisnis yang dapat ditindaklanjuti (actionable insights) untuk mendukung pengambilan keputusan. Berkomitmen tinggi, disiplin, dan terbiasa dalam komunikasi publik.",
+  bio: "Mahasiswi S1 Sistem Informasi (Bachelor of Information Systems) di Telkom University dan alumni SMAN 14 Jakarta dengan minat kuat pada perpaduan teknologi informasi, analisis proses bisnis, dan kecerdasan buatan (AI). Memiliki sertifikasi profesional Google dalam Business Intelligence, AI, dan Stakeholder Management. Terampil dalam kepemimpinan tim, manajemen pemangku kepentingan, serta mampu mentransformasikan data kompleks menjadi wawasan strategis (actionable insights) untuk mendukung pengambilan keputusan bisnis yang presisi.",
   avatarUrl: "/avatar.jpg",
   typewriterRoles: [
+    "Bachelor of Information Systems",
+    "Information Systems Student",
     "Business Enthusiast",
     "Aspiring Entrepreneur",
     "Digital Marketing Analyst",
@@ -62,6 +64,11 @@ export const personalData = {
 };
 
 export const educationList: EducationItem[] = [
+  {
+    school: "Telkom University",
+    graduationYear: "2025 - Sekarang",
+    description: "S1 Sistem Informasi (Bachelor of Information Systems). Mempelajari arsitektur sistem enterprise, integrasi proses bisnis, basis data relasional, dan Business Intelligence."
+  },
   {
     school: "SMAN 14 Jakarta",
     graduationYear: "Tahun Lulus: 2025",
