@@ -11,10 +11,12 @@ import {
   Mail
 } from 'lucide-react';
 import { personalData } from '../data/portfolioData';
-import { getCustomProfile, type CustomProfile } from '../lib/adminStorage';
+import { getCustomProfile, type CustomProfile } from '../lib/supabase';
 
 export const Hero: React.FC = () => {
-  const [profile, setProfile] = useState<CustomProfile>(getCustomProfile());
+  const [profile, setProfile] = useState<CustomProfile>(() => {
+    return getCustomProfile() || ({ ...personalData } as unknown as CustomProfile);
+  });
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [currentText, setCurrentText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);

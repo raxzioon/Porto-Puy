@@ -58,7 +58,7 @@ export const AdminPanel: React.FC = () => {
     return getCustomProfile() || { ...personalData };
   });
   const [avatarPreview, setAvatarPreview] = useState<string>(() => {
-    return getCustomAvatar() || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop';
+    return getCustomAvatar() || personalData.avatarUrl || '/avatar.jpg';
   });
   const [avatarUrlInput, setAvatarUrlInput] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
@@ -215,7 +215,7 @@ export const AdminPanel: React.FC = () => {
   const handleResetAvatar = async () => {
     if (confirm('Kembalikan foto profil ke foto awal?')) {
       await resetCustomAvatar();
-      setAvatarPreview('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop');
+      setAvatarPreview(personalData.avatarUrl || '/avatar.jpg');
       setProfileSuccessMsg('Foto profil berhasil di-reset.');
       setTimeout(() => setProfileSuccessMsg(''), 3000);
     }

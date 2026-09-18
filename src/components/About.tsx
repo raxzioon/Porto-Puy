@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GraduationCap, Briefcase, Sparkles, CheckCircle2 } from 'lucide-react';
 import { personalData, educationList, experienceList } from '../data/portfolioData';
-import { getCustomProfile, getCustomAvatar, type CustomProfile } from '../lib/adminStorage';
+import { getCustomProfile, getCustomAvatar, type CustomProfile } from '../lib/supabase';
 
 export const About: React.FC = () => {
-  const [profile, setProfile] = useState<CustomProfile>(getCustomProfile());
+  const [profile, setProfile] = useState<CustomProfile>(() => {
+    return getCustomProfile() || ({ ...personalData } as unknown as CustomProfile);
+  });
   const [avatar, setAvatar] = useState<string>(() => {
-    return getCustomAvatar() || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop';
+    return getCustomAvatar() || personalData.avatarUrl || '/avatar.jpg';
   });
   const [counts, setCounts] = useState<number[]>(personalData.stats.map(() => 0));
   const statsRef = useRef<HTMLDivElement | null>(null);
@@ -19,7 +21,7 @@ export const About: React.FC = () => {
     };
     const handleAvatarUpdate = (e: Event) => {
       const customEvent = e as CustomEvent<string | null>;
-      setAvatar(customEvent.detail || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop');
+      setAvatar(customEvent.detail || getCustomAvatar() || personalData.avatarUrl || '/avatar.jpg');
     };
 
     window.addEventListener('profile-updated', handleProfileUpdate);

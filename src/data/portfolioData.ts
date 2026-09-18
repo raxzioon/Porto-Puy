@@ -46,6 +46,7 @@ export const personalData = {
   whatsappUrl: "https://wa.me/6281297658009",
   location: "Jakarta, Indonesia",
   bio: "Lulusan SMAN 14 Jakarta dengan minat kuat di bidang pengembangan bisnis, analisis data, dan teknologi kecerdasan buatan (AI). Memiliki sertifikasi profesional Google dalam Business Intelligence, AI, dan Stakeholder Management. Terampil dalam kepemimpinan tim, manajemen pemangku kepentingan, serta mampu mengolah data menjadi wawasan bisnis yang dapat ditindaklanjuti (actionable insights) untuk mendukung pengambilan keputusan. Berkomitmen tinggi, disiplin, dan terbiasa dalam komunikasi publik.",
+  avatarUrl: "/avatar.jpg",
   typewriterRoles: [
     "Business Enthusiast",
     "Aspiring Entrepreneur",
