@@ -16,23 +16,28 @@ import {
   Copy, 
   Check, 
   LogOut,
-  Sliders,
-  Send
+  Database,
+  Send,
+  AlertCircle
 } from 'lucide-react';
 import { 
-  getStoredMessages, 
+  fetchContactMessages, 
   markMessageAsRead, 
   deleteContactMessage, 
   getCustomProfile, 
-  saveCustomProfile, 
-  resetCustomProfile, 
+  saveCustomProfileToDB, 
   getCustomAvatar, 
   saveCustomAvatar, 
   resetCustomAvatar, 
   compressImage,
+  getSupabaseConfig,
+  saveSupabaseConfig,
+  clearSupabaseConfig,
+  isSupabaseConnected,
+  getSupabaseClient,
   type ContactMessage,
   type CustomProfile
-} from '../lib/adminStorage';
+} from '../lib/supabase';
 import { personalData } from '../data/portfolioData';
 
 export const AdminPanel: React.FC = () => {
@@ -40,15 +45,18 @@ export const AdminPanel: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
-  const [activeTab, setActiveTab] = useState<'inbox' | 'profile' | 'security'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'profile' | 'database'>('inbox');
 
   // Messages state
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   // Profile state
-  const [profileData, setProfileData] = useState<CustomProfile>(getCustomProfile());
+  const [profileData, setProfileData] = useState<CustomProfile>(() => {
+    return getCustomProfile() || { ...personalData };
+  });
   const [avatarPreview, setAvatarPreview] = useState<string>(() => {
     return getCustomAvatar() || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop';
   });
@@ -57,13 +65,47 @@ export const AdminPanel: React.FC = () => {
   const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
   const [profileErrorMsg, setProfileErrorMsg] = useState('');
 
-  const defaultPin = '1234';
+  // Supabase Database state
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseKey, setSupabaseKey] = useState('');
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [dbTestStatus, setDbTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [dbTestMessage, setDbTestMessage] = useState('');
 
+  const defaultPin = import.meta.env.VITE_ADMIN_PIN || '1234';
   const unreadCount = messages.filter((m) => !m.is_read).length;
 
-  const loadMessages = useCallback(() => {
-    setMessages(getStoredMessages());
+  // Global Keyboard Shortcut: Alt + A
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.altKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const loadMessages = useCallback(async () => {
+    setIsLoadingMessages(true);
+    try {
+      const list = await fetchContactMessages();
+      setMessages(list);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
+  // Initialize DB config inputs
+  useEffect(() => {
+    const config = getSupabaseConfig();
+    if (config.url) setSupabaseUrl(config.url);
+    if (config.key) setSupabaseKey(config.key);
+  }, [isOpen]);
 
   useEffect(() => {
     loadMessages();
@@ -110,21 +152,21 @@ export const AdminPanel: React.FC = () => {
       setPinInput('');
       loadMessages();
     } else {
-      setPinError('PIN salah. Coba PIN bawaan: 1234');
+      setPinError(`PIN salah. Coba PIN bawaan: ${defaultPin}`);
     }
   };
 
-  const handleMarkRead = (id: string) => {
-    markMessageAsRead(id);
+  const handleMarkRead = async (id: string) => {
+    await markMessageAsRead(id);
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, is_read: true } : m)));
     if (selectedMessage?.id === id) {
       setSelectedMessage((prev) => (prev ? { ...prev, is_read: true } : null));
     }
   };
 
-  const handleDeleteMessage = (id: string) => {
-    if (confirm('Hapus pesan ini dari inbox?')) {
-      deleteContactMessage(id);
+  const handleDeleteMessage = async (id: string) => {
+    if (confirm('Hapus pesan ini dari inbox & database?')) {
+      await deleteContactMessage(id);
       setMessages((prev) => prev.filter((m) => m.id !== id));
       if (selectedMessage?.id === id) {
         setSelectedMessage(null);
@@ -132,6 +174,7 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  // Upload file & auto-compress & push to Supabase
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -148,9 +191,9 @@ export const AdminPanel: React.FC = () => {
     try {
       const compressed = await compressImage(file, 800, 800, 0.88);
       setAvatarPreview(compressed);
-      saveCustomAvatar(compressed);
-      setProfileSuccessMsg('Foto profil baru berhasil diunggah!');
-      setTimeout(() => setProfileSuccessMsg(''), 4000);
+      await saveCustomAvatar(compressed);
+      setProfileSuccessMsg('Foto profil berhasil diunggah dan disimpan ke database! Tampil untuk semua pengunjung.');
+      setTimeout(() => setProfileSuccessMsg(''), 5000);
     } catch (err) {
       console.error(err);
       setProfileErrorMsg('Gagal memproses gambar. Silakan coba file lain.');
@@ -159,56 +202,98 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleApplyAvatarUrl = () => {
+  const handleApplyAvatarUrl = async () => {
     if (!avatarUrlInput.trim()) return;
     const url = avatarUrlInput.trim();
     setAvatarPreview(url);
-    saveCustomAvatar(url);
+    await saveCustomAvatar(url);
     setAvatarUrlInput('');
-    setProfileSuccessMsg('Tautan foto profil berhasil diperbarui!');
-    setTimeout(() => setProfileSuccessMsg(''), 4000);
+    setProfileSuccessMsg('Tautan foto profil berhasil disimpan ke database! Tampil untuk semua pengunjung.');
+    setTimeout(() => setProfileSuccessMsg(''), 5000);
   };
 
-  const handleResetAvatar = () => {
+  const handleResetAvatar = async () => {
     if (confirm('Kembalikan foto profil ke foto awal?')) {
-      resetCustomAvatar();
+      await resetCustomAvatar();
       setAvatarPreview('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop');
       setProfileSuccessMsg('Foto profil berhasil di-reset.');
       setTimeout(() => setProfileSuccessMsg(''), 3000);
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveCustomProfile(profileData);
-    setProfileSuccessMsg('Data profil berhasil diperbarui di seluruh website!');
-    setTimeout(() => setProfileSuccessMsg(''), 4000);
+    await saveCustomProfileToDB(profileData);
+    setProfileSuccessMsg('Data profil berhasil disimpan ke database dan tersinkron ke semua pengunjung!');
+    setTimeout(() => setProfileSuccessMsg(''), 5000);
   };
 
-  const handleResetAllProfile = () => {
-    if (confirm('Kembalikan semua teks profil ke data bawaan CV?')) {
-      resetCustomProfile();
-      setProfileData({ ...personalData });
-      setProfileSuccessMsg('Profil berhasil dikembalikan ke data default.');
-      setTimeout(() => setProfileSuccessMsg(''), 3000);
+  const handleTestDatabase = async () => {
+    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
+      setDbTestStatus('failed');
+      setDbTestMessage('Harap masukkan Supabase URL dan Anon Key terlebih dahulu.');
+      return;
+    }
+
+    setDbTestStatus('testing');
+    setDbTestMessage('Menguji koneksi ke database Supabase...');
+
+    try {
+      saveSupabaseConfig(supabaseUrl, supabaseKey);
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Gagal menginisialisasi client Supabase.');
+
+      const { error } = await client.from('portfolio_settings').select('count', { count: 'exact', head: true });
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setDbTestStatus('success');
+      setDbTestMessage('Koneksi berhasil! Database Supabase siap menerima foto profil & pesan pengunjung.');
+      loadMessages();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDbTestStatus('failed');
+      setDbTestMessage(`Gagal terhubung: ${msg}. Pastikan tabel "portfolio_settings" sudah dibuat dengan SQL di bawah.`);
     }
   };
 
+  const sqlSchema = `-- Salin & jalankan SQL ini di Supabase SQL Editor:
+
+-- 1. Tabel untuk menyimpan foto profil & pengaturan website
+CREATE TABLE IF NOT EXISTS portfolio_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Tabel untuk pesan masuk pengunjung dari formulir kontak
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  topic TEXT,
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT false
+);
+
+-- 3. Kebijakan Keamanan (Row Level Security) agar dapat diakses oleh website publik
+ALTER TABLE portfolio_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read for settings" ON portfolio_settings FOR SELECT USING (true);
+CREATE POLICY "Allow public upsert for settings" ON portfolio_settings FOR ALL USING (true);
+
+CREATE POLICY "Allow public insert for messages" ON contact_messages FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public select for messages" ON contact_messages FOR SELECT USING (true);
+CREATE POLICY "Allow public update/delete for messages" ON contact_messages FOR ALL USING (true);
+`;
+
   return (
     <>
-      {/* Floating Trigger Button (Bottom-Left) */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 left-6 z-40 p-3 rounded-full bg-[#121118]/90 hover:bg-[#1a1824] text-white border border-[#ff5fac]/40 shadow-[0_0_25px_rgba(255,95,172,0.4)] backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:scale-110 group"
-        title="Admin Panel (Pesan & Profil)"
-      >
-        <ShieldCheck className="w-5 h-5 text-[#ff5fac] group-hover:rotate-12 transition-transform" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ff5fac] text-black text-[10px] font-extrabold flex items-center justify-center animate-pulse">
-            {unreadCount}
-          </span>
-        )}
-      </button>
+      {/* Invisible Trigger: Admin Panel is opened via Shortcut Alt + A */}
+      {/* (No floating button shown on screen as requested by user) */}
 
       {/* Main Admin Modal Overlay */}
       <AnimatePresence>
@@ -229,14 +314,12 @@ export const AdminPanel: React.FC = () => {
                   <div>
                     <h3 className="font-serif text-lg font-bold text-white flex items-center gap-2">
                       Admin Panel Portfolio
-                      {unreadCount > 0 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#ff5fac] text-black font-extrabold">
-                          {unreadCount} Pesan Baru
-                        </span>
-                      )}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-gray-300 font-mono">
+                        Shortcut: Alt + A
+                      </span>
                     </h3>
                     <p className="text-[11px] text-gray-400">
-                      Kelola pesan pengunjung & kustomisasi profil Anda
+                      Kelola pesan pengunjung & kustomisasi foto profil terpusat (Database Sync)
                     </p>
                   </div>
                 </div>
@@ -271,7 +354,7 @@ export const AdminPanel: React.FC = () => {
                     Verifikasi Akses Admin
                   </h4>
                   <p className="text-xs text-gray-400 mb-6">
-                    Masukkan PIN keamanan untuk membuka akses inbox pesan dan kustomisasi profil.
+                    Masukkan PIN keamanan untuk membuka akses kelola pesan & foto profil.
                   </p>
 
                   <form onSubmit={handleAuth} className="space-y-4">
@@ -329,19 +412,24 @@ export const AdminPanel: React.FC = () => {
                       }`}
                     >
                       <User className="w-4 h-4" />
-                      <span>Ganti Profil & Foto</span>
+                      <span>Ganti Profil & Foto (Cloud Sync)</span>
                     </button>
 
                     <button
-                      onClick={() => setActiveTab('security')}
+                      onClick={() => setActiveTab('database')}
                       className={`py-3.5 px-4 flex items-center gap-2 border-b-2 transition-colors ${
-                        activeTab === 'security'
+                        activeTab === 'database'
                           ? 'border-[#ff5fac] text-[#ff5fac]'
                           : 'border-transparent text-gray-400 hover:text-white'
                       }`}
                     >
-                      <Sliders className="w-4 h-4" />
-                      <span>Informasi & Pengaturan</span>
+                      <Database className="w-4 h-4" />
+                      <span>Database Supabase</span>
+                      {isSupabaseConnected() ? (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" title="Terhubung" />
+                      ) : (
+                        <span className="w-2 h-2 rounded-full bg-amber-400" title="Belum Terhubung" />
+                      )}
                     </button>
                   </div>
 
@@ -356,18 +444,18 @@ export const AdminPanel: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <div>
                             <h4 className="font-serif text-lg font-bold text-white">
-                              Daftar Pesan Masuk ({messages.length})
+                              Daftar Pesan Pengunjung ({messages.length})
                             </h4>
                             <p className="text-xs text-gray-400">
-                              Semua pesan yang dikirimkan oleh pengunjung melalui formulir kontak.
+                              Semua pesan yang dikirimkan pengunjung melalui formulir kontak.
                             </p>
                           </div>
                           <button
                             onClick={loadMessages}
+                            disabled={isLoadingMessages}
                             className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white flex items-center gap-1.5 text-xs transition-colors"
-                            title="Segarkan"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMessages ? 'animate-spin' : ''}`} />
                             <span className="hidden sm:inline">Refresh</span>
                           </button>
                         </div>
@@ -518,7 +606,7 @@ export const AdminPanel: React.FC = () => {
                     )}
 
                     {/* ======================================================= */}
-                    {/* TAB 2: GANTI PROFIL & FOTO                              */}
+                    {/* TAB 2: GANTI PROFIL & FOTO (CLOUD DATABASE SYNC)        */}
                     {/* ======================================================= */}
                     {activeTab === 'profile' && (
                       <div className="space-y-8">
@@ -538,10 +626,10 @@ export const AdminPanel: React.FC = () => {
                         <div className="p-6 rounded-2xl bg-[#14121e] border border-white/10">
                           <h4 className="font-serif text-base font-bold text-white mb-1 flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-[#ff5fac]" />
-                            Ganti Foto Profil (Avatar)
+                            Ganti Foto Profil (Tampil di Semua Pengunjung)
                           </h4>
                           <p className="text-xs text-gray-400 mb-6">
-                            Unggah foto baru dari komputer Anda atau masukkan tautan URL gambar.
+                            Foto yang Anda unggah otomatis dikompresi dan disimpan ke cloud database agar dapat dilihat oleh siapapun di perangkat manapun.
                           </p>
 
                           <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -558,14 +646,15 @@ export const AdminPanel: React.FC = () => {
                             <div className="flex-1 space-y-3 w-full">
                               <div>
                                 <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                                  Unggah File Gambar
+                                  Unggah File Foto dari Perangkat Anda
                                 </label>
                                 <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5fac]/20 to-[#d8ac6a]/20 border border-[#ff5fac]/40 text-xs font-semibold text-white hover:opacity-90 cursor-pointer transition-all">
                                   <Upload className="w-4 h-4 text-[#ff5fac]" />
-                                  <span>{isCompressing ? 'Memproses...' : 'Pilih File Gambar'}</span>
+                                  <span>{isCompressing ? 'Mengompresi & Menyimpan...' : 'Pilih File Foto Baru'}</span>
                                   <input
                                     type="file"
                                     accept="image/*"
+                                    disabled={isCompressing}
                                     onChange={handleFileSelect}
                                     className="hidden"
                                   />
@@ -574,21 +663,21 @@ export const AdminPanel: React.FC = () => {
 
                               <div>
                                 <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                                  Atau Gunakan Tautan URL Gambar
+                                  Atau Gunakan Tautan URL Gambar Eksternal
                                 </label>
                                 <div className="flex gap-2">
                                   <input
                                     type="url"
                                     value={avatarUrlInput}
                                     onChange={(e) => setAvatarUrlInput(e.target.value)}
-                                    placeholder="https://images.unsplash.com/..."
+                                    placeholder="https://..."
                                     className="flex-1 px-3.5 py-2 rounded-xl bg-[#0e0d16] border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#ff5fac]"
                                   />
                                   <button
                                     onClick={handleApplyAvatarUrl}
                                     className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors"
                                   >
-                                    Terapkan
+                                    Simpan URL
                                   </button>
                                 </div>
                               </div>
@@ -609,7 +698,7 @@ export const AdminPanel: React.FC = () => {
                             Sunting Identitas & Narasi Profil
                           </h4>
                           <p className="text-xs text-gray-400 mb-6">
-                            Perubahan pada kolom di bawah akan langsung muncul di halaman utama portofolio.
+                            Perubahan ini otomatis tersinkronisasi ke seluruh pengunjung website via cloud database.
                           </p>
 
                           <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -679,7 +768,7 @@ export const AdminPanel: React.FC = () => {
 
                             <div>
                               <label className="block text-xs font-semibold text-gray-300 mb-1">
-                                Narasi Profil Profesional (Bio)
+                                Narasi Profil Profesional (Bio CV)
                               </label>
                               <textarea
                                 rows={4}
@@ -691,7 +780,7 @@ export const AdminPanel: React.FC = () => {
 
                             <div>
                               <label className="block text-xs font-semibold text-gray-300 mb-1">
-                                Role Typewriter (Pisahkan dengan koma)
+                                Role Typewriter (Pisahkan dengan tanda koma)
                               </label>
                               <input
                                 type="text"
@@ -700,25 +789,16 @@ export const AdminPanel: React.FC = () => {
                                   const roles = e.target.value.split(',').map((r) => r.trim()).filter(Boolean);
                                   setProfileData({ ...profileData, typewriterRoles: roles });
                                 }}
-                                placeholder="Business Enthusiast, Aspiring Entrepreneur..."
                                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0e0d16] border border-white/10 text-xs text-white focus:outline-none focus:border-[#ff5fac]"
                               />
                             </div>
 
-                            <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                              <button
-                                type="button"
-                                onClick={handleResetAllProfile}
-                                className="text-xs text-gray-400 hover:text-rose-400 underline"
-                              >
-                                Kembalikan ke bawaan CV
-                              </button>
-
+                            <div className="flex items-center justify-end pt-4 border-t border-white/10">
                               <button
                                 type="submit"
                                 className="px-6 py-2.5 rounded-xl btn-primary-glow text-black font-bold text-xs uppercase tracking-wider"
                               >
-                                Simpan Perubahan Profil
+                                Simpan Profil ke Database
                               </button>
                             </div>
                           </form>
@@ -728,41 +808,121 @@ export const AdminPanel: React.FC = () => {
                     )}
 
                     {/* ======================================================= */}
-                    {/* TAB 3: INFORMASI & KEAMANAN                             */}
+                    {/* TAB 3: PENGATURAN DATABASE (SUPABASE)                   */}
                     {/* ======================================================= */}
-                    {activeTab === 'security' && (
-                      <div className="space-y-6 max-w-xl">
+                    {activeTab === 'database' && (
+                      <div className="space-y-6 max-w-2xl">
                         <div className="p-6 rounded-2xl bg-[#14121e] border border-white/10">
-                          <h4 className="font-serif text-base font-bold text-white mb-2">
-                            Informasi Akses Admin
-                          </h4>
-                          <p className="text-xs text-gray-400 leading-relaxed mb-4">
-                            Admin Panel ini tersimpan secara lokal dan aman di browser Anda menggunakan localStorage. PIN akses default adalah:
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-serif text-base font-bold text-white flex items-center gap-2">
+                              <Database className="w-4 h-4 text-[#ff5fac]" />
+                              Koneksi Cloud Database (Supabase)
+                            </h4>
+                            {isSupabaseConnected() ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Terhubung
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" /> Belum Terhubung
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 leading-relaxed mb-6">
+                            Agar foto profil baru dan pesan kontak tersimpan di cloud database (sehingga bisa dilihat oleh semua orang dari berbagai perangkat), hubungkan project Supabase Anda di bawah ini:
                           </p>
 
-                          <div className="p-3 rounded-xl bg-[#0b0a11] border border-white/10 inline-block font-mono text-sm text-[#ff5fac] font-bold">
-                            PIN Default: 1234
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-300 mb-1">
+                                Supabase Project URL
+                              </label>
+                              <input
+                                type="url"
+                                value={supabaseUrl}
+                                onChange={(e) => setSupabaseUrl(e.target.value)}
+                                placeholder="https://xyzcompany.supabase.co"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0e0d16] border border-white/10 text-xs text-white focus:outline-none focus:border-[#ff5fac]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-300 mb-1">
+                                Supabase Anon Public Key
+                              </label>
+                              <input
+                                type="password"
+                                value={supabaseKey}
+                                onChange={(e) => setSupabaseKey(e.target.value)}
+                                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0e0d16] border border-white/10 text-xs text-white focus:outline-none focus:border-[#ff5fac]"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-3 pt-2">
+                              <button
+                                onClick={handleTestDatabase}
+                                disabled={dbTestStatus === 'testing'}
+                                className="px-5 py-2 rounded-xl btn-primary-glow text-black font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+                              >
+                                {dbTestStatus === 'testing' ? 'Menguji...' : 'Uji & Simpan Koneksi'}
+                              </button>
+
+                              {isSupabaseConnected() && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm('Putuskan koneksi database Supabase?')) {
+                                      clearSupabaseConfig();
+                                      setSupabaseUrl('');
+                                      setSupabaseKey('');
+                                      setDbTestStatus('idle');
+                                      setDbTestMessage('');
+                                    }
+                                  }}
+                                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 text-xs transition-colors"
+                                >
+                                  Putuskan
+                                </button>
+                              )}
+                            </div>
+
+                            {dbTestMessage && (
+                              <div className={`p-3 rounded-xl text-xs mt-3 ${
+                                dbTestStatus === 'success' 
+                                  ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' 
+                                  : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+                              }`}>
+                                {dbTestMessage}
+                              </div>
+                            )}
                           </div>
                         </div>
 
+                        {/* SQL Script Generator */}
                         <div className="p-6 rounded-2xl bg-[#14121e] border border-white/10">
-                          <h4 className="font-serif text-base font-bold text-white mb-2">
-                            Status Penyimpanan
-                          </h4>
-                          <div className="space-y-2 text-xs text-gray-300">
-                            <div className="flex justify-between py-1 border-b border-white/5">
-                              <span>Total Pesan Tersimpan:</span>
-                              <span className="font-bold text-white">{messages.length} Pesan</span>
-                            </div>
-                            <div className="flex justify-between py-1 border-b border-white/5">
-                              <span>Pesan Belum Dibaca:</span>
-                              <span className="font-bold text-[#ff5fac]">{unreadCount} Pesan</span>
-                            </div>
-                            <div className="flex justify-between py-1">
-                              <span>Kustomisasi Profil Aktif:</span>
-                              <span className="font-bold text-emerald-400">Ya (Otomatis Tersinkron)</span>
-                            </div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-serif text-base font-bold text-white">
+                              Skrip SQL Database Supabase
+                            </h4>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(sqlSchema);
+                                setCopiedSql(true);
+                                setTimeout(() => setCopiedSql(false), 2500);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs flex items-center gap-1.5 transition-colors"
+                            >
+                              {copiedSql ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              <span>{copiedSql ? 'SQL Disalin!' : 'Salin SQL'}</span>
+                            </button>
                           </div>
+                          <p className="text-xs text-gray-400 mb-4">
+                            Jalankan skrip ini sekali saja di menu <strong>SQL Editor</strong> pada Dashboard Supabase Anda:
+                          </p>
+
+                          <pre className="p-4 rounded-xl bg-[#09080e] border border-white/5 text-[11px] text-gray-300 overflow-x-auto font-mono max-h-48 leading-relaxed">
+                            {sqlSchema}
+                          </pre>
                         </div>
                       </div>
                     )}

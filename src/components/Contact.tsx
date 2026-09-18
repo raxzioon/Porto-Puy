@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, Check, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { personalData } from '../data/portfolioData';
-import { saveContactMessage } from '../lib/adminStorage';
+import { sendContactMessage } from '../lib/supabase';
 
 export const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -14,7 +14,7 @@ export const Contact: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
@@ -25,8 +25,8 @@ export const Contact: React.FC = () => {
 
     setLoading(true);
 
-    // Save message to Admin inbox
-    saveContactMessage({
+    // Save message to Admin inbox & Supabase cloud database
+    await sendContactMessage({
       name: formData.name.trim(),
       email: formData.email.trim(),
       topic: formData.topic,
