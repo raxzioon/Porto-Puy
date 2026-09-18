@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Menu, X } from 'lucide-react';
-import { personalData } from '../data/portfolioData';
 
 export const Navbar: React.FC = () => {
   const [activeSection, setActiveSection] = useState('hero');
@@ -32,15 +31,10 @@ export const Navbar: React.FC = () => {
     <header className="fixed top-4 md:top-6 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-4xl">
       <nav className="glass-nav rounded-full px-5 py-2.5 md:px-8 md:py-3.5 flex items-center justify-between transition-all duration-300">
         
-        {/* Brand Logo / Initials */}
-        <a href="#hero" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-tr from-[#ff5fac] to-[#d8ac6a] p-[1.5px] flex items-center justify-center transition-transform group-hover:rotate-12 duration-300">
-            <div className="w-full h-full bg-[#0d0c12] rounded-full flex items-center justify-center text-xs md:text-sm font-bold text-white tracking-wider">
-              PN
-            </div>
-          </div>
+        {/* Brand Logo / Text */}
+        <a href="#hero" className="flex items-center group">
           <span className="font-serif text-base md:text-lg font-bold tracking-wide text-white group-hover:text-[#ff5fac] transition-colors">
-            {personalData.shortName}<span className="text-[#d8ac6a]">.</span>
+            puteryna<span className="text-[#d8ac6a]">_</span>
           </span>
         </a>
 
